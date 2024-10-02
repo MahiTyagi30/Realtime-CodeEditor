@@ -8,6 +8,11 @@ import EditorPage from './Pages/EditorPage';
 function App() {
   return (
     <>
+    {/* <div>
+    <ToastContainer position="top-right" 
+    className="custom-toast-container"
+    toastClassName="custom-toast" />
+    </div> */}
 <Router>
   <Routes>
     <Route path='/' element={<Home/>}></Route>
