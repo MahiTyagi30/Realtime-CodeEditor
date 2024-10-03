@@ -32,10 +32,6 @@ const Home = () =>{
             username,
         }
        })
-
-        
-
-        
         
      }
 
