@@ -1,73 +1,98 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Client } from '../components/Client';
-import { Editor } from '../components/Editor';
-import { initSocket } from '../socket';
+import React, { useState, useRef, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import ACTIONS from '../Actions';
-import { useLocation, useParams, useNavigate, Navigate } from 'react-router-dom';
-import { toast, ToastContainer } from 'react-toastify';  
-import 'react-toastify/dist/ReactToastify.css';  
+import Client from '../components/Client';
+import Editor from '../components/Editor';
+import { initSocket } from '../socket';
+import {
+    useLocation,
+    useNavigate,
+    Navigate,
+    useParams,
+} from 'react-router-dom';
 
 const EditorPage = () => {
-    const codeRef = useRef('');
-    const { roomId } = useParams();
     const socketRef = useRef(null);
+    const codeRef = useRef(null);
     const location = useLocation();
-    const navigate = useNavigate(); 
+    const { roomId } = useParams();
+    const reactNavigator = useNavigate();
     const [clients, setClients] = useState([]);
+    const [isConnected, setIsConnected] = useState(false); // New state to track connection status
+    const maxRetries = 5;  // Max number of retries for reconnection
+    let retryCount = 0;
 
     useEffect(() => {
         const init = async () => {
             try {
                 socketRef.current = await initSocket();
 
-                // Handle socket connection errors
+                // Event listeners for connection errors
                 socketRef.current.on('connect_error', handleErrors);
                 socketRef.current.on('connect_failed', handleErrors);
 
                 function handleErrors(e) {
-                    console.log('Socket error', e);
-                    toast.error('Socket connection failed, try again later');
-                    navigate('/');  // Navigate to home page on error
+                    console.log('Socket error:', e);
+                    toast.error('Socket connection failed. Retrying...');
+                    retryConnection();  // Retry the connection if failed
                 }
 
-                // Emit the JOIN event
+                // Join the room
                 socketRef.current.emit(ACTIONS.JOIN, {
                     roomId,
                     username: location.state?.username,
                 });
 
-                // Listen for the JOINED event
+                // Event listener for successful joining
                 socketRef.current.on(ACTIONS.JOINED, ({ clients, username, socketId }) => {
+                    setIsConnected(true);  // Mark as connected
                     if (username !== location.state?.username) {
-                        toast.success(`${username} joined the room`);
+                        toast.success(`${username} joined the room.`);
                     }
                     setClients(clients);
+                    socketRef.current.emit(ACTIONS.SYNC_CODE, {
+                        code: codeRef.current,
+                        socketId,
+                    });
                 });
 
-                // Listen for the DISCONNECTED event
+                // Event listener for disconnections
                 socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, username }) => {
-                    toast.success(`${username} left the room`);
+                    toast.success(`${username} left the room.`);
                     setClients((prev) => prev.filter(client => client.socketId !== socketId));
                 });
 
             } catch (error) {
-                console.error('Socket initialization error:', error);
-                toast.error('Failed to initialize socket, try again later');
+                console.error('Error initializing socket:', error);
+                toast.error('Socket initialization failed.');
             }
         };
 
-        init();
+        // Retry connection function
+        const retryConnection = () => {
+            if (retryCount < maxRetries) {
+                retryCount += 1;
+                setTimeout(() => {
+                    init();  // Try reconnecting
+                }, 2000);  // Wait for 2 seconds before retrying
+            } else {
+                toast.error('Max retries reached. Could not connect to the server.');
+                reactNavigator('/');  // Navigate back to home if it fails
+            }
+        };
+
+        init();  // Initial socket connection
 
         return () => {
             if (socketRef.current) {
+                socketRef.current.disconnect();
                 socketRef.current.off(ACTIONS.JOINED);
                 socketRef.current.off(ACTIONS.DISCONNECTED);
-                socketRef.current.disconnect();
             }
         };
-    }, [roomId, location.state?.username, navigate]);
+    }, [location.state?.username, reactNavigator, roomId]);
 
-    const copyRoomId = async () => {
+    async function copyRoomId() {
         try {
             await navigator.clipboard.writeText(roomId);
             toast.success('Room ID has been copied to your clipboard');
@@ -75,37 +100,53 @@ const EditorPage = () => {
             toast.error('Could not copy the Room ID');
             console.error(err);
         }
-    };
+    }
 
-    const leaveRoom = () => {
-        navigate('/');
-    };
+    function leaveRoom() {
+        reactNavigator('/');
+    }
 
     if (!location.state) {
         return <Navigate to="/" />;
     }
 
     return (
-        <div className='mainWrap'>
-            <div className='aside'>
-                <div className='asideInner'>
-                    <div className='logo'>
-                        <img className='logoImage' src='/image.png' alt='logo' />
+        <div className="mainWrap">
+            <div className="aside">
+                <div className="asideInner">
+                    <div className="logo">
+                        <img
+                            className="logoImage"
+                            src="/code-sync.png"
+                            alt="logo"
+                        />
                     </div>
                     <h3>Connected</h3>
-                    <div className='clientsList'>
+                    <div className="clientsList">
                         {clients.map((client) => (
-                            <Client key={client.socketId} username={client.username} />
+                            <Client
+                                key={client.socketId}
+                                username={client.username}
+                            />
                         ))}
                     </div>
                 </div>
-                <button className='btn copyBtn' onClick={copyRoomId}>Copy ROOM ID</button>
-                <button className='btn leaveBtn' onClick={leaveRoom}>Leave</button>
+                <button className="btn copyBtn" onClick={copyRoomId}>
+                    Copy ROOM ID
+                </button>
+                <button className="btn leaveBtn" onClick={leaveRoom}>
+                    Leave
+                </button>
             </div>
-            <div className='editorWrap'>
-                <Editor socketRef={socketRef} roomId={roomId} onCodeChange={(code) => { codeRef.current = code; }} />
+            <div className="editorWrap">
+                <Editor
+                    socketRef={socketRef}
+                    roomId={roomId}
+                    onCodeChange={(code) => {
+                        codeRef.current = code;
+                    }}
+                />
             </div>
-            <ToastContainer />
         </div>
     );
 };
