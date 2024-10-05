@@ -24,8 +24,12 @@ const Editor = ({ socketRef, roomId, onCodeChange }) => {
             editorRef.current.on('change', (instance, changes) => {
                 const { origin } = changes;
                 const code = instance.getValue();
-                onCodeChange(code); // Call the onCodeChange function with the new code
-                
+
+                // Call the onCodeChange function if it's defined
+                if (typeof onCodeChange === 'function') {
+                    onCodeChange(code);
+                }
+
                 // Emit code change only if it wasn't caused by setting the value
                 if (origin !== 'setValue') {
                     socketRef.current.emit(ACTIONS.CODE_CHANGE, {
@@ -52,7 +56,7 @@ const Editor = ({ socketRef, roomId, onCodeChange }) => {
             // Listen for code changes from other clients
             const handleCodeChange = ({ code }) => {
                 if (code !== null) {
-                    editorRef.current.setValue(code);
+                    editorRef.current.setValue(code); // Update editor with new code
                 }
             };
 

@@ -8,6 +8,7 @@ import { useLocation, useNavigate, Navigate, useParams } from 'react-router-dom'
 
 const EditorPage = () => {
     const socketRef = useRef(null);
+    const codeRef = useRef(null);
     const location = useLocation();
     const { roomId } = useParams(); // Get roomId from URL
     const navigate = useNavigate();
@@ -31,22 +32,17 @@ const EditorPage = () => {
                 }
 
                 // Join the room
-                const username = location.state?.username;
-                socketRef.current.emit(ACTIONS.JOIN, { roomId, username });
+                socketRef.current.emit(ACTIONS.JOIN, {
+                    roomId,
+                    username: location.state?.username,
+                });
 
-                socketRef.current.on(ACTIONS.JOINED, ({ clients: newClients, username }) => {
+                socketRef.current.on(ACTIONS.JOINED, ({ clients, username,socketId }) => {
                     setIsConnected(true);
                     if (username !== location.state?.username) {
                         toast.success(`${username} joined the room.`);
                     }
-
-                    // Update clients to avoid duplicates
-                    setClients((prev) => {
-                        const updatedClients = newClients.filter(client => 
-                            !prev.some(prevClient => prevClient.socketId === client.socketId)
-                        );
-                        return [...prev, ...updatedClients];
-                    });
+                    setClients(clients);
                 });
 
                 socketRef.current.on(ACTIONS.DISCONNECTED, ({ socketId, username }) => {
@@ -64,7 +60,7 @@ const EditorPage = () => {
 
         return () => {
             if (socketRef.current) {
-                socketRef.current.disconnect();
+                socketRef.current.disconnect(); // Call disconnect only if socketRef.current exists
                 socketRef.current.off(ACTIONS.JOINED);
                 socketRef.current.off(ACTIONS.DISCONNECTED);
             }
