@@ -83,7 +83,7 @@ io.on('connection', (socket) => {
 
             delete userSocketMap[socket.id];
             delete userRooms[socket.id]; // Cleanup the room tracking
-        });
+        }); 
 
         console.log(`${userSocketMap[socket.id]} disconnected`);
     });
